@@ -2,9 +2,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useListStore } from "@/store/useListStore";
 import { useState, useMemo } from "react";
 import { ContactRecord, DuplicateRule } from "@/types";
+import { RowSelectionState } from "@tanstack/react-table";
 import { DataTable } from "@/components/DataTable";
 import { RecordPanel } from "@/components/RecordPanel";
 import { ImportDialog } from "@/components/ImportDialog";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
+import { AiChat } from "@/components/AiChat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,12 +20,15 @@ const ListDetail = () => {
   const navigate = useNavigate();
   const list = useListStore((s) => s.getList(id || ""));
   const updateRecord = useListStore((s) => s.updateRecord);
+  const deleteRecords = useListStore((s) => s.deleteRecords);
+  const bulkTagRecords = useListStore((s) => s.bulkTagRecords);
 
   const [search, setSearch] = useState("");
   const [duplicateRule, setDuplicateRule] = useState<DuplicateRule>("none");
   const [hideDuplicates, setHideDuplicates] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<ContactRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const [filterCity, setFilterCity] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
@@ -73,8 +79,10 @@ const ListDetail = () => {
     return data;
   }, [records, search, filterCity, filterCountry, filterTag, filterHasEmail, hideDuplicates, duplicateRule]);
 
-  const handleExport = () => {
-    const csv = Papa.unparse(filtered.map(({ id: _id, ...rest }) => ({ ...rest, tags: rest.tags.join(", ") })));
+  const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
+
+  const exportRecords = (recs: ContactRecord[]) => {
+    const csv = Papa.unparse(recs.map(({ id: _id, ...rest }) => ({ ...rest, tags: rest.tags.join(", ") })));
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -82,6 +90,27 @@ const ListDetail = () => {
     a.download = `${list?.name || "export"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExport = () => exportRecords(filtered);
+
+  const handleBulkExport = () => {
+    const selected = filtered.filter((r) => selectedIds.includes(r.id));
+    exportRecords(selected);
+  };
+
+  const handleBulkDelete = () => {
+    if (id) {
+      deleteRecords(id, selectedIds);
+      setRowSelection({});
+    }
+  };
+
+  const handleBulkTag = (tags: string[]) => {
+    if (id) {
+      bulkTagRecords(id, selectedIds, tags);
+      setRowSelection({});
+    }
   };
 
   const handleUpdate = (recordId: string, updates: Partial<ContactRecord>) => {
@@ -127,54 +156,40 @@ const ListDetail = () => {
           onChange={(e) => setSearch(e.target.value)}
           className="w-64 h-8 text-sm"
         />
-
         <Select value={filterCity || "all"} onValueChange={(v) => setFilterCity(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-36 h-8 text-xs">
-            <SelectValue placeholder="City" />
-          </SelectTrigger>
+          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="City" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All cities</SelectItem>
             {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
-
         <Select value={filterCountry || "all"} onValueChange={(v) => setFilterCountry(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-32 h-8 text-xs">
-            <SelectValue placeholder="Country" />
-          </SelectTrigger>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Country" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All countries</SelectItem>
             {countries.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
-
         <Select value={filterTag || "all"} onValueChange={(v) => setFilterTag(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-36 h-8 text-xs">
-            <SelectValue placeholder="Tag" />
-          </SelectTrigger>
+          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Tag" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All tags</SelectItem>
             {allTags.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
           <Switch checked={filterHasEmail} onCheckedChange={setFilterHasEmail} className="scale-75" />
           Has email
         </label>
-
         <div className="ml-auto flex items-center gap-3">
           <Select value={duplicateRule} onValueChange={(v) => setDuplicateRule(v as DuplicateRule)}>
-            <SelectTrigger className="w-44 h-8 text-xs">
-              <SelectValue placeholder="Duplicate rule" />
-            </SelectTrigger>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Duplicate rule" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No duplicate rule</SelectItem>
               <SelectItem value="email">Duplicate: Email</SelectItem>
               <SelectItem value="name_company">Duplicate: Name + Company</SelectItem>
             </SelectContent>
           </Select>
-
           {duplicateRule !== "none" && (
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
               <Switch checked={hideDuplicates} onCheckedChange={setHideDuplicates} className="scale-75" />
@@ -184,6 +199,15 @@ const ListDetail = () => {
         </div>
       </div>
 
+      {/* Bulk actions */}
+      <BulkActionsBar
+        selectedCount={selectedIds.length}
+        onDelete={handleBulkDelete}
+        onTag={handleBulkTag}
+        onExport={handleBulkExport}
+        onClear={() => setRowSelection({})}
+      />
+
       {/* Table + Panel */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-auto">
@@ -192,6 +216,8 @@ const ListDetail = () => {
             duplicateIds={duplicateIds}
             onRowClick={setSelectedRecord}
             onUpdate={handleUpdate}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
           />
         </div>
         {selectedRecord && (
@@ -203,11 +229,10 @@ const ListDetail = () => {
         )}
       </div>
 
-      <ImportDialog
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        listId={list.id}
-      />
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} listId={list.id} />
+
+      {/* AI Chat */}
+      <AiChat records={records} listName={list.name} />
     </div>
   );
 };
