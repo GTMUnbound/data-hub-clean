@@ -6,11 +6,12 @@ import {
   flexRender,
   createColumnHelper,
   SortingState,
+  RowSelectionState,
 } from "@tanstack/react-table";
 import { ContactRecord } from "@/types";
 import { useState } from "react";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { InlineTagEditor } from "@/components/InlineTagEditor";
 
 const col = createColumnHelper<ContactRecord>();
@@ -20,12 +21,35 @@ interface DataTableProps {
   duplicateIds: Set<string>;
   onRowClick: (record: ContactRecord) => void;
   onUpdate: (id: string, updates: Partial<ContactRecord>) => void;
+  rowSelection: RowSelectionState;
+  onRowSelectionChange: (selection: RowSelectionState) => void;
 }
 
-export function DataTable({ data, duplicateIds, onRowClick, onUpdate }: DataTableProps) {
+export function DataTable({ data, duplicateIds, onRowClick, onUpdate, rowSelection, onRowSelectionChange }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const columns = [
+    col.display({
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(v) => row.toggleSelected(!!v)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+        />
+      ),
+      enableSorting: false,
+    }),
     col.accessor("full_name", {
       header: "Name",
       cell: (info) => (
@@ -56,11 +80,16 @@ export function DataTable({ data, duplicateIds, onRowClick, onUpdate }: DataTabl
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection },
     onSortingChange: setSorting,
+    onRowSelectionChange: (updater) => {
+      const next = typeof updater === "function" ? updater(rowSelection) : updater;
+      onRowSelectionChange(next);
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => row.id,
     initialState: { pagination: { pageSize: 50 } },
   });
 
@@ -74,7 +103,7 @@ export function DataTable({ data, duplicateIds, onRowClick, onUpdate }: DataTabl
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground whitespace-nowrap select-none"
+                    className={`text-left px-3 py-2.5 text-xs font-medium text-muted-foreground whitespace-nowrap select-none ${header.id === "select" ? "w-10" : ""}`}
                     onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
                     style={{ cursor: header.column.getCanSort() ? "pointer" : "default" }}
                   >
@@ -96,10 +125,10 @@ export function DataTable({ data, duplicateIds, onRowClick, onUpdate }: DataTabl
               <tr
                 key={row.id}
                 onClick={() => onRowClick(row.original)}
-                className={`table-row-hover border-b ${duplicateIds.has(row.original.id) ? "bg-accent/40" : ""}`}
+                className={`table-row-hover border-b ${row.getIsSelected() ? "bg-accent/60" : duplicateIds.has(row.original.id) ? "bg-accent/40" : ""}`}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-2.5 whitespace-nowrap max-w-[200px] truncate">
+                  <td key={cell.id} className={`px-3 py-2.5 whitespace-nowrap max-w-[200px] truncate ${cell.column.id === "select" ? "w-10" : ""}`}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -109,7 +138,6 @@ export function DataTable({ data, duplicateIds, onRowClick, onUpdate }: DataTabl
         </table>
       </div>
 
-      {/* Pagination */}
       <div className="border-t bg-background px-4 py-2 flex items-center justify-between text-xs text-muted-foreground shrink-0">
         <span>
           {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}–
