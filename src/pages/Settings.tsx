@@ -107,17 +107,17 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-surface">
-      <header className="border-b bg-background px-8 py-5 flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="h-8 w-8">
+      <header className="border-b bg-background px-4 sm:px-8 py-3.5 sm:py-5 flex items-center gap-2 sm:gap-4 sticky top-0 z-50">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="h-8 w-8 hover:bg-secondary">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Account & user management</p>
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl font-semibold tracking-tight leading-none mb-1 truncate">Settings</h1>
+          <p className="text-[10px] sm:text-sm text-muted-foreground uppercase sm:normal-case tracking-wider sm:tracking-normal font-medium mt-0.5 truncate">Account & management</p>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-8 py-8 space-y-6">
+      <main className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
 
         {/* Current user */}
         <div className="bg-background rounded-lg border shadow-sm">

@@ -51,11 +51,11 @@ export function AiChat({ records, listName, listId, onFilter }: AiChatProps) {
       totalRecords: records.length,
       topCompanies: Object.entries(
         records.reduce((acc, r) => ({ ...acc, [r.company]: (acc[r.company] || 0) + 1 }), {} as Record<string, number>)
-      ).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => `${name} (${count})`),
+      ).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => `${name} (${count})`),
       topCities: Object.entries(
         records.reduce((acc, r) => ({ ...acc, [r.city]: (acc[r.city] || 0) + 1 }), {} as Record<string, number>)
-      ).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => `${name} (${count})`),
-      sampleRecords: records.slice(0, 5000).map((r) => ({
+      ).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => `${name} (${count})`),
+      sampleRecords: records.slice(0, 1000).map((r) => ({
         name: r.full_name,
         email: r.email,
         company: r.company,
@@ -208,16 +208,21 @@ Rules:
     <>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-50 h-11 w-11 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-all flex items-center justify-center"
+        className="fixed bottom-6 right-6 z-50 h-11 w-11 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-all flex items-center justify-center sm:h-12 sm:w-12"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
       </button>
 
       {open && (
-        <div className="fixed bottom-20 right-6 z-50 w-80 h-[480px] bg-background border rounded-xl shadow-2xl flex flex-col animate-slide-in-right overflow-hidden">
-          <div className="px-4 py-3 border-b bg-accent/30 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">Assistant</h3>
+        <div className="fixed inset-x-4 bottom-24 sm:inset-auto sm:bottom-20 sm:right-6 z-40 sm:w-80 h-[480px] max-h-[70vh] sm:max-h-none bg-background border rounded-xl shadow-2xl flex flex-col animate-slide-in-right overflow-hidden">
+          <div className="px-4 py-3 border-b bg-accent/30 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Assistant</h3>
+            </div>
+            <button onClick={() => setOpen(false)} className="sm:hidden">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
           <div ref={scrollRef} className="flex-1 overflow-auto p-4 space-y-3">
             {messages.length === 0 && (

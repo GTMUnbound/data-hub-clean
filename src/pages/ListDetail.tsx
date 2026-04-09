@@ -160,85 +160,79 @@ const ListDetail = () => {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
-      <header className="border-b bg-background px-6 py-3.5 flex items-center gap-4 shrink-0">
+      <header className="border-b bg-background px-4 sm:px-6 py-2.5 sm:py-3.5 flex items-center gap-2 sm:gap-4 shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="h-8 w-8 hover:bg-secondary">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Logo" className="h-6 w-auto" onError={(e) => e.currentTarget.style.display = 'none'} />
-          <div className="h-4 w-px bg-border mx-1" />
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <img src="/logo.png" alt="Logo" className="h-5 sm:h-6 w-auto shrink-0" onError={(e) => e.currentTarget.style.display = 'none'} />
+          <div className="h-4 w-px bg-border mx-0.5 sm:mx-1 shrink-0" />
           <div className="min-w-0">
             {recordsLoading ? (
-              <div className="h-4 bg-secondary rounded w-40 animate-pulse" />
+              <div className="h-4 bg-secondary rounded w-24 sm:w-40 animate-pulse" />
             ) : (
               <>
-                <h1 className="text-sm font-semibold truncate leading-none mb-0.5">{list?.name}</h1>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{records.length} records</p>
+                <h1 className="text-xs sm:text-sm font-semibold truncate leading-none mb-0.5">{list?.name}</h1>
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{records.length} records</p>
               </>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5 h-8 text-xs sm:text-sm px-2 sm:px-3">
             <Upload className="h-3.5 w-3.5" />
-            Import CSV
+            <span className="hidden xs:inline">Import</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5 h-8 text-xs sm:text-sm px-2 sm:px-3">
             <Download className="h-3.5 w-3.5" />
-            Export
+            <span className="hidden xs:inline">Export</span>
           </Button>
         </div>
       </header>
 
       {/* Toolbar */}
-      <div className="border-b bg-background px-6 py-2.5 flex items-center gap-3 flex-wrap shrink-0">
+      <div className="border-b bg-background px-4 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar shrink-0">
         <Input
-          placeholder="Search name, company, email..."
+          placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-64 h-8 text-sm"
+          className="w-40 sm:w-64 h-8 text-xs sm:text-sm shrink-0"
         />
+        <div className="h-4 w-px bg-border shrink-0" />
         <Select value={filterCity || "all"} onValueChange={(v) => setFilterCity(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="City" /></SelectTrigger>
+          <SelectTrigger className="w-28 sm:w-36 h-8 text-[10px] sm:text-xs shrink-0"><SelectValue placeholder="City" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All cities</SelectItem>
             {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterCountry || "all"} onValueChange={(v) => setFilterCountry(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Country" /></SelectTrigger>
+          <SelectTrigger className="w-28 sm:w-32 h-8 text-[10px] sm:text-xs shrink-0"><SelectValue placeholder="Country" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All countries</SelectItem>
             {countries.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterTag || "all"} onValueChange={(v) => setFilterTag(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Tag" /></SelectTrigger>
+          <SelectTrigger className="w-28 sm:w-36 h-8 text-[10px] sm:text-xs shrink-0"><SelectValue placeholder="Tag" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All tags</SelectItem>
             {allTags.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-          <Switch checked={filterHasEmail} onCheckedChange={setFilterHasEmail} className="scale-75" />
-          Has email
+        <label className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground cursor-pointer whitespace-nowrap shrink-0">
+          <Switch checked={filterHasEmail} onCheckedChange={setFilterHasEmail} className="scale-[0.6] sm:scale-75" />
+          Email
         </label>
-        <div className="ml-auto flex items-center gap-3">
-          <Select value={duplicateRule} onValueChange={(v) => setDuplicateRule(v as DuplicateRule)}>
-            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Duplicate rule" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No duplicate rule</SelectItem>
-              <SelectItem value="email">Duplicate: Email</SelectItem>
-              <SelectItem value="name_company">Duplicate: Name + Company</SelectItem>
-            </SelectContent>
-          </Select>
-          {duplicateRule !== "none" && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-              <Switch checked={hideDuplicates} onCheckedChange={setHideDuplicates} className="scale-75" />
-              Hide dupes
-            </label>
-          )}
-        </div>
+        <div className="h-4 w-px bg-border shrink-0" />
+        <Select value={duplicateRule} onValueChange={(v) => setDuplicateRule(v as DuplicateRule)}>
+          <SelectTrigger className="w-32 sm:w-44 h-8 text-[10px] sm:text-xs shrink-0"><SelectValue placeholder="Duplicates" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No rule</SelectItem>
+            <SelectItem value="email">By Email</SelectItem>
+            <SelectItem value="name_company">By Name+Co</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Bulk actions */}
