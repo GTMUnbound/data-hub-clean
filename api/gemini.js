@@ -1,6 +1,4 @@
-export const config = {
-  runtime: "edge",
-};
+// Using standard Node.js runtime (default) instead of Edge for more reliable timeouts with AI calls
 
 export default async function handler(req) {
   // Only allow POST
