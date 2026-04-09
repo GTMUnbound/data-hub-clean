@@ -1,8 +1,16 @@
 import fs from 'fs';
+import 'dotenv/config';
 
-const token = 'sbp_36827ef06d69c48fbd7149f7e570bf85801ea5b8';
-const ref = 'cogjucqjenpxgprtfkmz';
-const apiKey = 'AIzaSyAol8txkYnzJio4E7l1f1IVinKDLTzcvEg';
+const token = process.env.SUPABASE_ACCESS_TOKEN;
+const ref = process.env.SUPABASE_PROJECT_REF;
+const apiKey = process.env.GEMINI_API_KEY;
+
+if (!token || !ref || !apiKey) {
+  console.error("Missing required environment variables in your .env file!");
+  console.error("Please ensure SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, and GEMINI_API_KEY are set.");
+  process.exit(1);
+}
+
 
 async function setup() {
   console.log('Setting secrets...');
