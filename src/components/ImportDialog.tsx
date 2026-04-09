@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { useListStore } from "@/store/useListStore";
 import { ContactRecord } from "@/types";
+import { useAddRecords } from "@/hooks/useRecords";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
 
-const FIELDS: (keyof ContactRecord)[] = ["full_name", "email", "company", "title", "city", "country", "source", "tags", "notes"];
+const FIELDS: (keyof ContactRecord)[] = [
+  "full_name", "email", "company", "title", "city", "country", "source", "tags", "notes",
+];
 
 interface ImportDialogProps {
   open: boolean;
@@ -25,7 +27,7 @@ interface ImportDialogProps {
 type Step = "upload" | "preview" | "mapping";
 
 export function ImportDialog({ open, onClose, listId }: ImportDialogProps) {
-  const addRecords = useListStore((s) => s.addRecords);
+  const addRecords = useAddRecords();
   const [step, setStep] = useState<Step>("upload");
   const [csvData, setCsvData] = useState<string[][]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -49,11 +51,15 @@ export function ImportDialog({ open, onClose, listId }: ImportDialogProps) {
         setHeaders(hdrs);
         setCsvData(rows.slice(1).filter((r) => r.some((c) => c.trim())));
 
+        // Auto-map columns
         const autoMap: Record<string, string> = {};
         hdrs.forEach((h) => {
           const lower = h.toLowerCase().replace(/[^a-z]/g, "");
-          const match = FIELDS.find((f) => f.replace("_", "").includes(lower) || lower.includes(f.replace("_", "")));
+          const match = FIELDS.find(
+            (f) => f.replace("_", "").includes(lower) || lower.includes(f.replace("_", ""))
+          );
           if (match) autoMap[h] = match;
+          else autoMap[h] = "custom";
         });
         setMapping(autoMap);
         setStep("preview");
@@ -63,29 +69,33 @@ export function ImportDialog({ open, onClose, listId }: ImportDialogProps) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "text/csv": [".csv"] },
+    accept: { "text/csv": [".csv"], "text/plain": [".txt"] },
     maxFiles: 1,
   });
 
-  const doImport = () => {
-    const records: ContactRecord[] = csvData.map((row, i) => {
-      const rec: any = { id: `import-${Date.now()}-${i}`, tags: [], notes: "" };
+  const doImport = async () => {
+    const records: Omit<ContactRecord, "id">[] = csvData.map((row) => {
+      const rec: any = { tags: [], notes: "", custom_fields: {} };
       headers.forEach((h, idx) => {
         const field = mapping[h];
-        if (field && row[idx] !== undefined) {
+        if (field && field !== "skip" && row[idx] !== undefined) {
           if (field === "tags") {
             rec.tags = row[idx].split(",").map((t: string) => t.trim()).filter(Boolean);
+          } else if (field === "custom") {
+            if (row[idx].trim()) rec.custom_fields[h] = row[idx].trim();
           } else {
             rec[field] = row[idx].trim();
           }
         }
       });
+      // Fill blanks
       FIELDS.forEach((f) => {
         if (!(f in rec)) rec[f] = f === "tags" ? [] : "";
       });
-      return rec as ContactRecord;
+      return rec as Omit<ContactRecord, "id">;
     });
-    addRecords(listId, records);
+
+    await addRecords.mutateAsync({ listId, records });
     reset();
     onClose();
   };
@@ -148,12 +158,16 @@ export function ImportDialog({ open, onClose, listId }: ImportDialogProps) {
               <div key={h} className="flex items-center gap-3">
                 <span className="text-sm w-40 truncate text-muted-foreground">{h}</span>
                 <span className="text-muted-foreground">→</span>
-                <Select value={mapping[h] || "skip"} onValueChange={(v) => setMapping((m) => ({ ...m, [h]: v === "skip" ? "" : v }))}>
+                <Select
+                  value={mapping[h] || "skip"}
+                  onValueChange={(v) => setMapping((m) => ({ ...m, [h]: v === "skip" ? "" : v }))}
+                >
                   <SelectTrigger className="w-48 h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="skip">Skip</SelectItem>
+                    <SelectItem value="custom">Create Custom Field</SelectItem>
                     {FIELDS.map((f) => (
                       <SelectItem key={f} value={f}>{f}</SelectItem>
                     ))}
@@ -174,7 +188,10 @@ export function ImportDialog({ open, onClose, listId }: ImportDialogProps) {
           {step === "mapping" && (
             <>
               <Button variant="outline" onClick={() => setStep("preview")}>Back</Button>
-              <Button onClick={doImport}>Import {csvData.length} rows</Button>
+              <Button onClick={doImport} disabled={addRecords.isPending} className="gap-1.5">
+                {addRecords.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {addRecords.isPending ? "Importing…" : `Import ${csvData.length} rows`}
+              </Button>
             </>
           )}
         </DialogFooter>

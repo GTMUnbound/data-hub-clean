@@ -1,5 +1,4 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useListStore } from "@/store/useListStore";
 import { useState, useMemo } from "react";
 import { ContactRecord, DuplicateRule } from "@/types";
 import { RowSelectionState } from "@tanstack/react-table";
@@ -8,26 +7,42 @@ import { RecordPanel } from "@/components/RecordPanel";
 import { ImportDialog } from "@/components/ImportDialog";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 import { AiChat } from "@/components/AiChat";
+import { ExportDialog } from "@/components/ExportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Upload, Download } from "lucide-react";
 import Papa from "papaparse";
+import {
+  useRecords,
+  useUpdateRecord,
+  useDeleteRecords,
+  useBulkTagRecords,
+} from "@/hooks/useRecords";
+import { useLists } from "@/hooks/useLists";
 
 const ListDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const list = useListStore((s) => s.getList(id || ""));
-  const updateRecord = useListStore((s) => s.updateRecord);
-  const deleteRecords = useListStore((s) => s.deleteRecords);
-  const bulkTagRecords = useListStore((s) => s.bulkTagRecords);
 
+  // ── Data ────────────────────────────────────────────────────
+  const { data: lists = [] } = useLists();
+  const list = lists.find((l) => l.id === id);
+
+  const { data: records = [], isLoading: recordsLoading } = useRecords(id);
+  const updateRecord = useUpdateRecord(id);
+  const deleteRecords = useDeleteRecords(id);
+  const bulkTagRecords = useBulkTagRecords(id);
+
+  // ── UI state ─────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [duplicateRule, setDuplicateRule] = useState<DuplicateRule>("none");
   const [hideDuplicates, setHideDuplicates] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<ContactRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<(ContactRecord & { is_duplicate: boolean }) | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportData, setExportData] = useState<ContactRecord[]>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const [filterCity, setFilterCity] = useState("");
@@ -35,8 +50,7 @@ const ListDetail = () => {
   const [filterTag, setFilterTag] = useState("");
   const [filterHasEmail, setFilterHasEmail] = useState(false);
 
-  const records = list?.records || [];
-
+  // ── Derived data ─────────────────────────────────────────────
   const cities = useMemo(() => [...new Set(records.map((r) => r.city).filter(Boolean))].sort(), [records]);
   const countries = useMemo(() => [...new Set(records.map((r) => r.country).filter(Boolean))].sort(), [records]);
   const allTags = useMemo(() => [...new Set(records.flatMap((r) => r.tags))].sort(), [records]);
@@ -46,7 +60,10 @@ const ListDetail = () => {
     const seen = new Map<string, string>();
     const dupes = new Set<string>();
     records.forEach((r) => {
-      const key = duplicateRule === "email" ? r.email.toLowerCase() : `${r.full_name.toLowerCase()}|${r.company.toLowerCase()}`;
+      const key =
+        duplicateRule === "email"
+          ? r.email.toLowerCase()
+          : `${r.full_name.toLowerCase()}|${r.company.toLowerCase()}`;
       if (seen.has(key)) {
         dupes.add(r.id);
         dupes.add(seen.get(key)!);
@@ -58,10 +75,15 @@ const ListDetail = () => {
   }, [records, duplicateRule]);
 
   const filtered = useMemo(() => {
-    let data = records;
+    let data = records as (ContactRecord & { is_duplicate: boolean })[];
     if (search) {
       const q = search.toLowerCase();
-      data = data.filter((r) => r.full_name.toLowerCase().includes(q) || r.company.toLowerCase().includes(q) || r.email.toLowerCase().includes(q));
+      data = data.filter(
+        (r) =>
+          r.full_name.toLowerCase().includes(q) ||
+          r.company.toLowerCase().includes(q) ||
+          r.email.toLowerCase().includes(q)
+      );
     }
     if (filterCity) data = data.filter((r) => r.city === filterCity);
     if (filterCountry) data = data.filter((r) => r.country === filterCountry);
@@ -70,7 +92,10 @@ const ListDetail = () => {
     if (hideDuplicates && duplicateRule !== "none") {
       const seen = new Set<string>();
       data = data.filter((r) => {
-        const key = duplicateRule === "email" ? r.email.toLowerCase() : `${r.full_name.toLowerCase()}|${r.company.toLowerCase()}`;
+        const key =
+          duplicateRule === "email"
+            ? r.email.toLowerCase()
+            : `${r.full_name.toLowerCase()}|${r.company.toLowerCase()}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -81,44 +106,51 @@ const ListDetail = () => {
 
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
 
-  const exportRecords = (recs: ContactRecord[]) => {
-    const csv = Papa.unparse(recs.map(({ id: _id, ...rest }) => ({ ...rest, tags: rest.tags.join(", ") })));
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${list?.name || "export"}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = () => {
+    setExportData(filtered);
+    setExportOpen(true);
   };
-
-  const handleExport = () => exportRecords(filtered);
-
+  
   const handleBulkExport = () => {
-    const selected = filtered.filter((r) => selectedIds.includes(r.id));
-    exportRecords(selected);
+    setExportData(filtered.filter((r) => selectedIds.includes(r.id)));
+    setExportOpen(true);
   };
 
+  // ── Mutations ────────────────────────────────────────────────
   const handleBulkDelete = () => {
-    if (id) {
-      deleteRecords(id, selectedIds);
-      setRowSelection({});
-    }
+    deleteRecords.mutate(selectedIds, {
+      onSuccess: () => setRowSelection({}),
+    });
   };
 
   const handleBulkTag = (tags: string[]) => {
-    if (id) {
-      bulkTagRecords(id, selectedIds, tags);
-      setRowSelection({});
-    }
+    bulkTagRecords.mutate(
+      { recordIds: selectedIds, tags },
+      { onSuccess: () => setRowSelection({}) }
+    );
   };
 
   const handleUpdate = (recordId: string, updates: Partial<ContactRecord>) => {
-    if (id) updateRecord(id, recordId, updates);
-    if (selectedRecord?.id === recordId) setSelectedRecord((prev) => (prev ? { ...prev, ...updates } : null));
+    updateRecord.mutate({ recordId, updates });
+    if (selectedRecord?.id === recordId) {
+      setSelectedRecord((prev) => (prev ? { ...prev, ...updates } : null));
+    }
   };
 
-  if (!list) {
+  // ── AI filter action handler ──────────────────────────────────
+  const handleAiFilter = (field: string, value: string) => {
+    switch (field) {
+      case "city":        setFilterCity(value);    break;
+      case "country":     setFilterCountry(value); break;
+      case "tag":
+      case "tags":        setFilterTag(value);     break;
+      case "search":      setSearch(value);        break;
+      case "has_email":   setFilterHasEmail(true); break;
+    }
+  };
+
+  // ── Not found ────────────────────────────────────────────────
+  if (!recordsLoading && !list) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center text-muted-foreground">
         List not found.
@@ -129,12 +161,22 @@ const ListDetail = () => {
   return (
     <div className="min-h-screen bg-surface flex flex-col">
       <header className="border-b bg-background px-6 py-3.5 flex items-center gap-4 shrink-0">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="h-8 w-8">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="h-8 w-8 hover:bg-secondary">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-base font-semibold truncate">{list.name}</h1>
-          <p className="text-xs text-muted-foreground">{records.length} records</p>
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="Logo" className="h-6 w-auto" onError={(e) => e.currentTarget.style.display = 'none'} />
+          <div className="h-4 w-px bg-border mx-1" />
+          <div className="min-w-0">
+            {recordsLoading ? (
+              <div className="h-4 bg-secondary rounded w-40 animate-pulse" />
+            ) : (
+              <>
+                <h1 className="text-sm font-semibold truncate leading-none mb-0.5">{list?.name}</h1>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{records.length} records</p>
+              </>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
@@ -211,14 +253,26 @@ const ListDetail = () => {
       {/* Table + Panel */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-auto">
-          <DataTable
-            data={filtered}
-            duplicateIds={duplicateIds}
-            onRowClick={setSelectedRecord}
-            onUpdate={handleUpdate}
-            rowSelection={rowSelection}
-            onRowSelectionChange={setRowSelection}
-          />
+          {recordsLoading ? (
+            <div className="p-8 space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-10 bg-secondary/50 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : records.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground text-sm">
+              No records yet. Import a CSV to get started.
+            </div>
+          ) : (
+            <DataTable
+              data={filtered}
+              duplicateIds={duplicateIds}
+              onRowClick={setSelectedRecord}
+              onUpdate={handleUpdate}
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
+            />
+          )}
         </div>
         {selectedRecord && (
           <RecordPanel
@@ -229,10 +283,24 @@ const ListDetail = () => {
         )}
       </div>
 
-      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} listId={list.id} />
+      {id && <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} listId={id} />}
+      
+      <ExportDialog 
+        open={exportOpen} 
+        onClose={() => setExportOpen(false)} 
+        records={exportData} 
+        fileName={list?.name} 
+      />
 
       {/* AI Chat */}
-      <AiChat records={records} listName={list.name} />
+      {id && (
+        <AiChat
+          records={records}
+          listName={list?.name ?? ""}
+          listId={id}
+          onFilter={handleAiFilter}
+        />
+      )}
     </div>
   );
 };

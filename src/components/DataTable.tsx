@@ -9,10 +9,11 @@ import {
   RowSelectionState,
 } from "@tanstack/react-table";
 import { ContactRecord } from "@/types";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InlineTagEditor } from "@/components/InlineTagEditor";
+import { EditableCell } from "@/components/EditableCell";
 
 const col = createColumnHelper<ContactRecord>();
 
@@ -28,54 +29,106 @@ interface DataTableProps {
 export function DataTable({ data, duplicateIds, onRowClick, onUpdate, rowSelection, onRowSelectionChange }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  const columns = [
-    col.display({
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-          aria-label="Select all"
-          className="translate-y-[2px]"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(v) => row.toggleSelected(!!v)}
-          onClick={(e) => e.stopPropagation()}
-          aria-label="Select row"
-          className="translate-y-[2px]"
-        />
-      ),
-      enableSorting: false,
-    }),
-    col.accessor("full_name", {
-      header: "Name",
+  const customKeys = useMemo(() => {
+    const keys = new Set<string>();
+    data.forEach((r) => {
+      if (r.custom_fields) {
+        Object.keys(r.custom_fields).forEach((k) => keys.add(k));
+      }
+    });
+    return Array.from(keys).sort();
+  }, [data]);
+
+  const columns = useMemo(() => {
+    const baseColumns = [
+      col.display({
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+            aria-label="Select all"
+            className="translate-y-[2px]"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Select row"
+            className="translate-y-[2px]"
+          />
+        ),
+        enableSorting: false,
+      }),
+      col.accessor("full_name", {
+        header: "Name",
+        cell: (info) => (
+          <div className="font-medium text-foreground w-full">
+            <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { full_name: v })} placeholder="Name" />
+          </div>
+        ),
+      }),
+      col.accessor("email", {
+        header: "Email",
+        cell: (info) => (
+          <div className="text-muted-foreground w-full">
+            <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { email: v })} placeholder="Email" />
+          </div>
+        ),
+      }),
+      col.accessor("company", {
+        header: "Company",
+        cell: (info) => <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { company: v })} placeholder="Company" />,
+      }),
+      col.accessor("title", {
+        header: "Title",
+        cell: (info) => <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { title: v })} placeholder="Title" />,
+      }),
+      col.accessor("city", {
+        header: "City",
+        cell: (info) => <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { city: v })} placeholder="City" />,
+      }),
+      col.accessor("country", {
+        header: "Country",
+        cell: (info) => <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { country: v })} placeholder="Country" />,
+      }),
+      col.accessor("source", {
+        header: "Source",
+        cell: (info) => <EditableCell value={info.getValue()} onUpdate={(v) => onUpdate(info.row.original.id, { source: v })} placeholder="Source" />,
+      }),
+      col.accessor("tags", {
+        header: "Tags",
+        cell: (info) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <InlineTagEditor
+              tags={info.getValue()}
+              onChange={(tags) => onUpdate(info.row.original.id, { tags })}
+            />
+          </div>
+        ),
+        enableSorting: false,
+      }),
+    ];
+
+    const dynamicColumns = customKeys.map(k => col.accessor((row: ContactRecord) => row.custom_fields?.[k] as string, {
+      id: `custom_${k}`,
+      header: k,
       cell: (info) => (
-        <span className="font-medium text-foreground">{info.getValue()}</span>
-      ),
-    }),
-    col.accessor("email", {
-      header: "Email",
-      cell: (info) => <span className="text-muted-foreground">{info.getValue()}</span>,
-    }),
-    col.accessor("company", { header: "Company" }),
-    col.accessor("title", { header: "Title" }),
-    col.accessor("city", { header: "City" }),
-    col.accessor("country", { header: "Country" }),
-    col.accessor("source", { header: "Source" }),
-    col.accessor("tags", {
-      header: "Tags",
-      cell: (info) => (
-        <InlineTagEditor
-          tags={info.getValue()}
-          onChange={(tags) => onUpdate(info.row.original.id, { tags })}
+        <EditableCell
+          value={info.getValue()}
+          onUpdate={(v) => {
+            const currentCustom = info.row.original.custom_fields || {};
+            onUpdate(info.row.original.id, { custom_fields: { ...currentCustom, [k]: v } });
+          }}
+          placeholder={k}
         />
-      ),
-      enableSorting: false,
-    }),
-  ];
+      )
+    }));
+
+    return [...baseColumns, ...dynamicColumns];
+  }, [onUpdate, customKeys]);
 
   const table = useReactTable({
     data,

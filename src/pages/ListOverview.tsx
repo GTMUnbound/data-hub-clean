@@ -1,8 +1,15 @@
-import { useListStore } from "@/store/useListStore";
+import { useLists, useCreateList, useUpdateList, useDeleteList } from "@/hooks/useLists";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Settings, LogOut, MoreHorizontal, Pencil, Trash2, Check, X } from "lucide-react";
 import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -13,14 +20,20 @@ import {
 import { Input } from "@/components/ui/input";
 
 const ListOverview = () => {
-  const { lists, addList } = useListStore();
+  const { data: lists = [], isLoading } = useLists();
+  const createList = useCreateList();
+  const updateList = useUpdateList();
+  const deleteList = useDeleteList();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim()) return;
-    const id = addList(newName.trim());
+    const id = await createList.mutateAsync(newName.trim());
     setOpen(false);
     setNewName("");
     navigate(`/list/${id}`);
@@ -28,15 +41,39 @@ const ListOverview = () => {
 
   return (
     <div className="min-h-screen bg-surface">
-      <header className="border-b bg-background px-8 py-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">GTM Unbound</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Data Admin</p>
+      <header className="border-b bg-background px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-50">
+        <div className="flex items-center gap-4">
+          <img src="/logo.png" alt="GTM Unbound" className="h-8 w-auto" />
+          <div className="h-6 w-px bg-border mx-1" />
+          <div>
+            <h1 className="text-lg font-bold tracking-tight leading-none mb-0.5">GTM Unbound</h1>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Data Control Center</p>
+          </div>
         </div>
-        <Button onClick={() => setOpen(true)} size="sm" className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Create New List
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/settings")}
+            className="h-8 w-8"
+            title="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={signOut}
+            className="h-8 w-8"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+          <Button onClick={() => setOpen(true)} size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Create New List
+          </Button>
+        </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-8 py-8">
@@ -45,32 +82,141 @@ const ListOverview = () => {
             <h2 className="text-sm font-medium text-muted-foreground">All Lists</h2>
           </div>
           <div className="divide-y">
-            {lists.map((list) => (
-              <button
-                key={list.id}
-                onClick={() => navigate(`/list/${list.id}`)}
-                className="w-full text-left px-5 py-3.5 table-row-hover flex items-center justify-between group"
-              >
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm group-hover:text-primary transition-colors">
-                    {list.name}
-                  </span>
+            {isLoading ? (
+              // Loading skeleton
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="px-5 py-3.5 flex items-center justify-between animate-pulse">
+                  <div className="h-4 bg-secondary rounded w-48" />
+                  <div className="flex gap-8">
+                    <div className="h-4 bg-secondary rounded w-24" />
+                    <div className="h-4 bg-secondary rounded w-16" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-8 text-sm text-muted-foreground">
-                  <span className="w-32 text-right">
-                    {new Date(list.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
-                  <span className="w-20 text-right tabular-nums">
-                    {list.records.length} records
-                  </span>
-                </div>
-              </button>
-            ))}
-            {lists.length === 0 && (
+              ))
+            ) : (
+              lists.map((list) => {
+                const isEditing = editingListId === list.id;
+                return (
+                  <div
+                    key={list.id}
+                    className="w-full text-left px-5 py-3.5 table-row-hover flex items-center justify-between group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      {isEditing ? (
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="h-7 text-sm w-64"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editName.trim()) {
+                                updateList.mutate({ id: list.id, name: editName.trim() }, {
+                                  onSuccess: () => setEditingListId(null)
+                                });
+                              } else if (e.key === "Escape") {
+                                setEditingListId(null);
+                              }
+                            }}
+                          />
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-green-500" onClick={() => {
+                            if (editName.trim()) {
+                              updateList.mutate({ id: list.id, name: editName.trim() }, {
+                                onSuccess: () => setEditingListId(null)
+                              });
+                            }
+                          }}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingListId(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => navigate(`/list/${list.id}`)}
+                          className="font-medium text-sm group-hover:text-primary transition-colors text-left"
+                        >
+                          {list.name}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span className="w-32 text-right pointer-events-none">
+                        {new Date(list.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <span className="w-20 text-right tabular-nums pointer-events-none">
+                        {list.record_count ?? 0} records
+                      </span>
+                      
+                      {/* Action Menu */}
+                      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => {
+                            setEditingListId(list.id);
+                            setEditName(list.name);
+                          }}
+                          title="Rename"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete "${list.name}"? This will delete all records immediately.`)) {
+                              deleteList.mutate(list.id);
+                            }
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <div className="w-px h-4 bg-border mx-1" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditingListId(list.id);
+                                setEditName(list.name);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete "${list.name}"? This will delete all records immediately.`)) {
+                                  deleteList.mutate(list.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            {!isLoading && lists.length === 0 && (
               <div className="px-5 py-12 text-center text-muted-foreground text-sm">
                 No lists yet. Create one to get started.
               </div>
@@ -93,7 +239,12 @@ const ListOverview = () => {
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!newName.trim()}>Create</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={!newName.trim() || createList.isPending}
+            >
+              {createList.isPending ? "Creating…" : "Create"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -57,6 +57,12 @@ export function RecordPanel({ record, onClose, onUpdate }: RecordPanelProps) {
             <p className="text-sm mt-0.5">{f.value || "—"}</p>
           </div>
         ))}
+        {record.custom_fields && Object.entries(record.custom_fields).map(([key, val]) => (
+          <div key={key}>
+            <label className="text-xs text-muted-foreground font-medium">{key}</label>
+            <p className="text-sm mt-0.5">{val as React.ReactNode || "—"}</p>
+          </div>
+        ))}
 
         <div>
           <label className="text-xs text-muted-foreground font-medium">Tags</label>

@@ -1,0 +1,8 @@
+full_name,email,company,title,city,country,source,tags,notes
+John Doe,john@acme.com,Acme Corp,CEO,Bangalore,India,LinkedIn,ICP,High priority
+Jane Smith,jane@globex.com,Globex Inc,CTO,San Francisco,US,Referral,Champion,Technical decision maker
+Alice Brown,alice@hooli.com,Hooli,VP Product,Bangalore,India,Conference,Decision Maker,Wait for Q3
+Bob Johnson,bob@stark.com,Stark Industries,Head of Growth,New York,US,Inbound,SMB,Wants a demo
+Charlie Wilson,charlie@wayne.com,Wayne Enterprises,Marketing Manager,London,UK,Webinar,Enterprise,Follow up next week
+David Lee,david@acme.com,Acme Corp,Engineer,Bangalore,India,LinkedIn,Technical,Duplicate likely
+John Doe,john@acme.com,Acme Corp,CEO,Bangalore,India,LinkedIn,ICP,Duplicate check

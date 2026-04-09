@@ -9,13 +9,15 @@ export interface ContactRecord {
   source: string;
   tags: string[];
   notes: string;
+  custom_fields?: Record<string, any>;
+  is_duplicate?: boolean;
 }
 
 export interface ContactList {
   id: string;
   name: string;
   created_at: string;
-  records: ContactRecord[];
+  record_count?: number;
 }
 
 export type DuplicateRule = "email" | "name_company" | "none";
