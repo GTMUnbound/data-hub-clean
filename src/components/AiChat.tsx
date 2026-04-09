@@ -33,7 +33,7 @@ export function AiChat({ records, listName, listId, onFilter }: AiChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -72,11 +72,6 @@ export function AiChat({ records, listName, listId, onFilter }: AiChatProps) {
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
-    if (!GEMINI_API_KEY) {
-      toast.error("Gemini API Key is missing in .env");
-      setMessages(prev => [...prev, { role: "assistant", content: "Error: Gemini API Key not configured." }]);
-      return;
-    }
     
     setInput("");
     const userMsg: ChatMessage = { role: "user", content: text };
@@ -134,21 +129,18 @@ Rules:
       let res;
       let retries = 3;
       while (retries > 0) {
-        res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents,
-              generationConfig: { 
-                temperature: 0.3, 
-                response_mime_type: "application/json" 
-              },
-            }),
-          }
-        );
-        
+        res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: 0.3,
+              response_mime_type: "application/json",
+            },
+          }),
+        });
+
         if (res.ok) break; // Success
         if (res.status === 503) {
           retries--;
@@ -157,7 +149,7 @@ Rules:
             continue;
           }
         }
-        
+
         // If it's not a 503 or we ran out of retries, throw the error
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData?.error?.message || `Gemini API error ${res.status}`);
